@@ -1,8 +1,14 @@
+# Pre-built images from Docker Hub (mirrored at ghcr.io/arc53).
+#   DOCSGPT_IMAGE_TAG      develop (default, follows main) or a release, e.g. 0.20.0
+#   DOCSGPT_IMAGE_VARIANT  empty (default, slim) or -docling: docling parser engine,
+#                          its models, and tesseract baked in (OCR-ready)
+# Set them in ../.env or the shell. deployment/docker-compose-standalone.yaml is
+# the same stack without a git checkout.
 name: docsgpt-oss
 services:
 
   frontend:
-    image: arc53/docsgpt-fe:develop
+    image: arc53/docsgpt-fe:${DOCSGPT_IMAGE_TAG:-develop}
     environment:
       - VITE_API_HOST=http://localhost:7091
       - VITE_API_STREAMING=${VITE_API_STREAMING:-true}
@@ -15,7 +21,7 @@ services:
 
   backend:
     user: root
-    image: arc53/docsgpt:develop
+    image: arc53/docsgpt:${DOCSGPT_IMAGE_TAG:-develop}${DOCSGPT_IMAGE_VARIANT:-}
     env_file:
       - ../.env
     environment:
@@ -38,7 +44,7 @@ services:
 
   worker:
     user: root
-    image: arc53/docsgpt:develop
+    image: arc53/docsgpt:${DOCSGPT_IMAGE_TAG:-develop}${DOCSGPT_IMAGE_VARIANT:-}
     # `parsing` queue carries read_document/parse_document; required for its await to resolve.
     command: celery -A application.app.celery worker -l INFO -B -Q docsgpt,parsing,embeddings
     env_file:

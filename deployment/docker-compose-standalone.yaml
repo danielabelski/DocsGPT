@@ -1,0 +1,104 @@
+# DocsGPT from pre-built images, with no git checkout.
+#
+#   curl -fsSLO https://raw.githubusercontent.com/arc53/DocsGPT/main/deployment/docker-compose-standalone.yaml
+#   printf 'LLM_PROVIDER=docsgpt\nVITE_API_STREAMING=true\n' > .env   # or any provider, see the settings guide
+#   docker compose up -d
+#   open http://localhost:5173
+#
+# Every release also attaches this file as an asset. Settings come from .env
+# next to this file (any DocsGPT setting; the compose-internal service URLs
+# below take precedence). Data lives in named volumes, so `docker compose
+# down` keeps it and `docker compose down -v` removes it.
+#
+#   DOCSGPT_IMAGE_TAG      release to run, e.g. 0.20.0 (default: latest release);
+#                          develop follows the main branch
+#   DOCSGPT_IMAGE_VARIANT  empty (slim, default) or -docling: docling parser
+#                          engine, its models, and tesseract baked in (OCR-ready)
+name: docsgpt
+
+services:
+  frontend:
+    image: arc53/docsgpt-fe:${DOCSGPT_IMAGE_TAG:-latest}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - VITE_API_HOST=${VITE_API_HOST:-http://localhost:7091}
+      - VITE_API_STREAMING=${VITE_API_STREAMING:-true}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  backend:
+    image: arc53/docsgpt:${DOCSGPT_IMAGE_TAG:-latest}${DOCSGPT_IMAGE_VARIANT:-}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CACHE_REDIS_URL=redis://redis:6379/2
+      - POSTGRES_URI=postgresql://docsgpt:docsgpt@postgres:5432/docsgpt
+    ports:
+      - "7091:7091"
+    volumes:
+      - indexes:/app/indexes
+      - inputs:/app/inputs
+      - vectors:/app/vectors
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: arc53/docsgpt:${DOCSGPT_IMAGE_TAG:-latest}${DOCSGPT_IMAGE_VARIANT:-}
+    # Consumes the default queue plus `parsing` (read_document) and `embeddings`
+    # (query embedding); without the latter every search times out.
+    command: celery -A application.app.celery worker -l INFO -B -Q docsgpt,parsing,embeddings
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CACHE_REDIS_URL=redis://redis:6379/2
+      - POSTGRES_URI=postgresql://docsgpt:docsgpt@postgres:5432/docsgpt
+      - API_URL=http://backend:7091
+    volumes:
+      - indexes:/app/indexes
+      - inputs:/app/inputs
+      - vectors:/app/vectors
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:6-alpine
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=docsgpt
+      - POSTGRES_PASSWORD=docsgpt
+      - POSTGRES_DB=docsgpt
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docsgpt -d docsgpt"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  indexes:
+  inputs:
+  vectors:
+  postgres_data:

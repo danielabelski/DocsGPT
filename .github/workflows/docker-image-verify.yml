@@ -1,0 +1,52 @@
+name: Verify the Docker image works offline
+
+# Builds the backend image and runs its offline check with networking off, so
+# a change that reintroduces a first-request download (a tokenizer, tiktoken's
+# encoding, an embedding model) fails here instead of in an air-gapped install.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'application/Dockerfile'
+      - 'application/.dockerignore'
+      - 'application/requirements*.txt'
+      - 'application/scripts/prefetch_models.py'
+      - 'application/scripts/verify_offline.py'
+      - 'application/vectorstore/model_registry.py'
+      - 'application/parser/tokenization.py'
+      - 'application/vectorstore/embeddings_local.py'
+      - '.github/workflows/docker-image-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the slim image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./application/Dockerfile
+          context: ./application
+          platforms: linux/amd64
+          load: true
+          tags: docsgpt:verify
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image size
+        run: |
+          docker image inspect docsgpt:verify --format '{{.Size}}' | awk '{printf "uncompressed: %.2f GB\n", $1/1e9}'
+          docker history docsgpt:verify --format '{{.Size}}\t{{.CreatedBy}}' | head -20
+
+      - name: Offline verification (no network)
+        run: |
+          docker run --rm --network none docsgpt:verify \
+            python -m application.scripts.verify_offline
