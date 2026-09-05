@@ -4,6 +4,7 @@ import uuid
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple
 
+from application.core.optional_deps import require
 from application.core.settings import settings
 from application.vectorstore.base import BaseVectorStore
 from application.vectorstore.document_class import Document
@@ -41,7 +42,8 @@ class MilvusStore(BaseVectorStore):
     def __init__(self, source_id: str = "", embeddings_key: str = "embeddings"):
         super().__init__()
         with _without_milvus_uri_env():
-            from pymilvus import DataType, MilvusClient
+            pymilvus = require("pymilvus", "VECTOR_STORE=milvus")
+        DataType, MilvusClient = pymilvus.DataType, pymilvus.MilvusClient
 
         self._DataType = DataType
         self._source_id = str(source_id).replace("application/indexes/", "").rstrip("/")

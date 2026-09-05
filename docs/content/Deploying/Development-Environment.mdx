@@ -94,12 +94,24 @@ To run the DocsGPT backend locally, you'll need to set up a Python environment a
     pip install -r application/requirements.txt
     ```
 
-    Optionally add the docling parser engine (OCR, `structured` output for
-    `read_document`; the default anydoc engine does not need it):
+    Dependencies are declared in `pyproject.toml` and locked in `uv.lock`; the
+    `requirements*.txt` files are exported from that lock, so with
+    [uv](https://docs.astral.sh/uv/) installed `uv sync` sets up the same
+    environment (plus the test tools) in one step.
+
+    Optional extras are not installed by default. Add them when you need the
+    feature (each file is the core set plus the extra):
 
     ```bash
-    pip install -r application/requirements-docling.txt
+    pip install -r application/requirements-docling.txt   # docling parser engine: OCR backend, read_document structured output
+    pip install -r application/requirements-milvus.txt    # VECTOR_STORE=milvus
+    # or with uv: uv sync --extra docling --extra milvus
     ```
+
+    A feature whose extra is missing fails with the exact command to run.
+    After changing `pyproject.toml`, run `uv lock` and
+    `bash scripts/export_requirements.sh` so the exported files stay in sync
+    (CI checks this).
 
 5.  **Run the Backend:**
 

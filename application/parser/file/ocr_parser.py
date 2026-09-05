@@ -39,6 +39,8 @@ from application.parser.file.base_parser import (
     module_available,
 )
 
+from application.core.optional_deps import install_hint
+
 logger = logging.getLogger(__name__)
 
 # Every engine ``OCR_ENGINE`` accepts. ``auto``, ``ocrmac`` and ``rapidocr``
@@ -129,8 +131,8 @@ def resolve_ocr_backend(requested: Optional[str] = None) -> str:
     docling_installed = module_available("docling")
     if backend == "docling" and not docling_installed:
         logger.warning(
-            "OCR_BACKEND=docling but docling is not installed (pip install -r "
-            "application/requirements-docling.txt); using the native OCR backend"
+            "OCR_BACKEND=docling but docling is not installed (%s); using the native OCR backend",
+            install_hint("docling"),
         )
         return "native"
     if backend == "auto":
