@@ -1,8 +1,11 @@
 # DocsGPT from pre-built images, with no git checkout.
 #
 #   curl -fsSLO https://raw.githubusercontent.com/arc53/DocsGPT/main/deployment/docker-compose-standalone.yaml
-#   printf 'LLM_PROVIDER=docsgpt\nVITE_API_STREAMING=true\n' > .env   # or any provider, see the settings guide
-#   docker compose up -d
+#   printf 'LLM_PROVIDER=docsgpt\nVITE_API_STREAMING=true\nINTERNAL_KEY=%s\n' "$(openssl rand -hex 16)" > .env
+#   docker compose -f docker-compose-standalone.yaml up -d
+#
+# INTERNAL_KEY is the shared secret the worker uses to hand finished indexes to
+# the API; without it every ingest fails with a 401 (setup.sh generates one).
 #   open http://localhost:5173
 #
 # Every release also attaches this file as an asset. Settings come from .env

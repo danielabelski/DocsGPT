@@ -36,10 +36,13 @@ first use. You do not need the source tree to run them:
 
 2.  **Create a `.env` next to it** with your settings, for example the public API:
 
+    ```bash
+    printf 'LLM_PROVIDER=docsgpt\nVITE_API_STREAMING=true\nINTERNAL_KEY=%s\n' "$(openssl rand -hex 16)" > .env
     ```
-    LLM_PROVIDER=docsgpt
-    VITE_API_STREAMING=true
-    ```
+
+    `INTERNAL_KEY` is the secret the worker uses to hand finished indexes to
+    the API; without it every upload fails with a 401. `setup.sh` generates
+    one for you, a hand-written `.env` has to include it.
 
 3.  **Start it:**
 
@@ -87,6 +90,7 @@ extra packages: `EXTRAS=docling` in `.env`).
     ```
     LLM_PROVIDER=docsgpt
     VITE_API_STREAMING=true
+    INTERNAL_KEY=<any random string, e.g. openssl rand -hex 16>
     ```
 
     This minimal configuration tells DocsGPT to use the public API. For more advanced settings and other LLM options, refer to the [DocsGPT Settings Guide](/Deploying/DocsGPT-Settings).
