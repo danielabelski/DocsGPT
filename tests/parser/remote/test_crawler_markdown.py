@@ -48,7 +48,7 @@ def _patch_validate_url(monkeypatch):
 @pytest.fixture(autouse=True)
 def _patch_tldextract(monkeypatch):
     monkeypatch.setattr(
-        "application.parser.remote.crawler_markdown.tldextract.extract",
+        "application.parser.remote.crawler_markdown._extract",
         _fake_extract,
     )
 

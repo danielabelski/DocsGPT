@@ -104,7 +104,11 @@ def _read_repo_json(repo: str, filename: str) -> Optional[dict]:
     try:
         from huggingface_hub import hf_hub_download
 
-        with open(hf_hub_download(repo_id=repo, filename=filename), encoding="utf-8") as handle:
+        try:
+            path = hf_hub_download(repo_id=repo, filename=filename, local_files_only=True)
+        except Exception:  # noqa: BLE001 -- not cached: fetch it
+            path = hf_hub_download(repo_id=repo, filename=filename)
+        with open(path, encoding="utf-8") as handle:
             return json.load(handle)
     except Exception as exc:
         logger.debug("No %s for %s (%s)", filename, repo, exc)

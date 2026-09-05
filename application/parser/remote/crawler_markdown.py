@@ -9,6 +9,11 @@ from application.parser.schema.base import Document
 import tldextract
 import os
 
+# The bundled public-suffix snapshot is enough for domain matching; the
+# default extractor would fetch the live list on first use and cache it on
+# disk, which is a network round trip the ingest worker should not depend on.
+_extract = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=None)
+
 class CrawlerLoader(BaseRemote):
     def __init__(self, limit=10, allow_subdomains=False):
         """
@@ -124,7 +129,7 @@ class CrawlerLoader(BaseRemote):
         return links
 
     def _get_base_domain(self, url):
-        extracted = tldextract.extract(url)
+        extracted = _extract(url)
         # Reconstruct the domain as domain.suffix
         base_domain = f"{extracted.domain}.{extracted.suffix}"
         return base_domain
@@ -141,7 +146,7 @@ class CrawlerLoader(BaseRemote):
             if not parsed_link.netloc:
                 continue
 
-            extracted = tldextract.extract(parsed_link.netloc)
+            extracted = _extract(parsed_link.netloc)
             link_base = f"{extracted.domain}.{extracted.suffix}"
 
             if self.allow_subdomains:

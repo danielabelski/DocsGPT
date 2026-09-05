@@ -216,12 +216,28 @@ class HuggingFaceCounter(TokenCounter):
         return _cap_piece_chars(pieces, first, rest)
 
 
+def _tokenizer_file(repo: str) -> str:
+    """Path to ``repo``'s ``tokenizer.json``, from the hub cache when present.
+
+    A warmed cache (the Docker image bakes the default models) answers without
+    touching the network. ``hf_hub_download`` would otherwise revalidate the
+    revision with a HEAD request on every process start, and stall for the
+    etag timeout on a host that cannot reach huggingface.co.
+    """
+    from huggingface_hub import hf_hub_download
+
+    try:
+        return hf_hub_download(repo, "tokenizer.json", local_files_only=True)
+    except Exception:  # noqa: BLE001 -- not cached: fetch it
+        return hf_hub_download(repo, "tokenizer.json")
+
+
 def _load_hf_counter(repo: str) -> Optional[HuggingFaceCounter]:
     """Load ``repo``'s tokenizer, or ``None`` if it is not reachable."""
     try:
         from tokenizers import Tokenizer
 
-        tokenizer = Tokenizer.from_pretrained(repo)
+        tokenizer = Tokenizer.from_file(_tokenizer_file(repo))
         # Repos ship padding and truncation defaults meant for inference
         # batches. Left on, every count returns the padded width (128 for
         # mpnet) and the offsets carry (0, 0) entries for the padding, so both
