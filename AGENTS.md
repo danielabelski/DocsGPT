@@ -33,6 +33,8 @@ uv pip install -r application/requirements.txt  # or: pip install -r application
 # uv pip install -r application/requirements-docling.txt   # docling parser engine (OCR backend, structured output)
 # uv pip install -r application/requirements-milvus.txt    # VECTOR_STORE=milvus
 # With uv alone: `uv sync --extra docling` (pyproject.toml + uv.lock are the source of truth).
+# `uv pip install -r application/requirements-docling.txt` needs UV_INDEX_STRATEGY=unsafe-best-match
+# (the file adds the PyTorch CPU index; prefer `uv sync --extra docling`).
 ```
 
 Dependencies are declared in `pyproject.toml` and locked in `uv.lock`; the

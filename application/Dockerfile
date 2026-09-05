@@ -136,7 +136,10 @@ RUN if python -c "import docling" 2>/dev/null; then \
 
 COPY --chown=appuser:appuser . /app/application
 
-RUN mkdir -p /app/application/inputs/local
+# Runtime data directories, owned by the process user so a named volume
+# mounted on them (docker-compose-standalone.yaml) inherits that ownership
+# and uploads work without running the container as root.
+RUN mkdir -p /app/application/inputs/local /app/inputs /app/indexes /app/vectors
 
 ENV FLASK_APP=app.py
 

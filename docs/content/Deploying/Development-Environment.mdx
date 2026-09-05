@@ -108,6 +108,10 @@ To run the DocsGPT backend locally, you'll need to set up a Python environment a
     # or with uv: uv sync --extra docling --extra milvus
     ```
 
+    The docling file adds the PyTorch CPU index; pip handles that as-is, while
+    `uv pip install -r` needs `UV_INDEX_STRATEGY=unsafe-best-match` (or use
+    `uv sync --extra docling`, which reads the lock).
+
     A feature whose extra is missing fails with the exact command to run.
     After changing `pyproject.toml`, run `uv lock` and
     `bash scripts/export_requirements.sh` so the exported files stay in sync

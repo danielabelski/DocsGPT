@@ -32,6 +32,10 @@ services:
 
   backend:
     image: arc53/docsgpt:${DOCSGPT_IMAGE_TAG:-latest}${DOCSGPT_IMAGE_VARIANT:-}
+    # Same as docker-compose-hub.yaml: the data volumes are written by root so
+    # any image tag works, including releases that predate the appuser-owned
+    # /app/inputs, /app/indexes and /app/vectors directories.
+    user: root
     env_file:
       - path: .env
         required: false
@@ -55,6 +59,7 @@ services:
 
   worker:
     image: arc53/docsgpt:${DOCSGPT_IMAGE_TAG:-latest}${DOCSGPT_IMAGE_VARIANT:-}
+    user: root
     # Consumes the default queue plus `parsing` (read_document) and `embeddings`
     # (query embedding); without the latter every search times out.
     command: celery -A application.app.celery worker -l INFO -B -Q docsgpt,parsing,embeddings

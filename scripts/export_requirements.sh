@@ -54,6 +54,10 @@ OCR_ENABLED=true with the tesseract binary (or a DeepSeek-OCR endpoint) runs
 through application/parser/file/ocr_parser.py.
 On Linux torch comes from the CPU-only PyTorch index (no CUDA stack); a GPU
 deployment can reinstall torch from PyPI on top.
+pip resolves the extra index as expected. uv only takes a package from the
+first index that lists it, and the PyTorch index carries stale copies of
+common packages, so with uv either run 'uv sync --extra docling' (the lock
+pins the index per package) or set UV_INDEX_STRATEGY=unsafe-best-match.
 Docker: --build-arg EXTRAS=docling" \
   --extra docling
 
