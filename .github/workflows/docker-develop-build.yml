@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     if: github.repository == 'arc53/DocsGPT'
+    env:
+      # Docker Hub namespace; a secret is only referenced from env blocks.
+      DOCKERHUB_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
     strategy:
       matrix:
         platform: [linux/amd64, linux/arm64]
@@ -48,7 +51,7 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: |
-            ${{ secrets.DOCKER_USERNAME }}/docsgpt
+            ${{ env.DOCKERHUB_NAMESPACE }}/docsgpt
             ghcr.io/${{ github.repository_owner }}/docsgpt
           labels: |
             org.opencontainers.image.title=DocsGPT${{ matrix.variant }}
@@ -65,16 +68,19 @@ jobs:
             EXTRAS=${{ matrix.variant == '-docling' && 'docling' || '' }}
             INSTALL_TESSERACT=${{ matrix.variant == '-docling' && 'true' || 'false' }}
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/docsgpt:develop${{ matrix.variant }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
+            ${{ env.DOCKERHUB_NAMESPACE }}/docsgpt:develop${{ matrix.variant }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
             ghcr.io/${{ github.repository_owner }}/docsgpt:develop${{ matrix.variant }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/docsgpt:develop${{ matrix.variant }}
+          cache-from: type=registry,ref=${{ env.DOCKERHUB_NAMESPACE }}/docsgpt:develop${{ matrix.variant }}
           cache-to: type=inline
 
   manifest:
     if: github.repository == 'arc53/DocsGPT'
+    env:
+      # Docker Hub namespace; a secret is only referenced from env blocks.
+      DOCKERHUB_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
     needs: build
     strategy:
       matrix:
@@ -107,7 +113,7 @@ jobs:
           TAG: develop${{ matrix.variant }}
         run: |
           set -e
-          for repo in "${{ secrets.DOCKER_USERNAME }}/docsgpt" "ghcr.io/${{ github.repository_owner }}/docsgpt"; do
+          for repo in "$DOCKERHUB_NAMESPACE/docsgpt" "ghcr.io/${{ github.repository_owner }}/docsgpt"; do
             docker manifest create "$repo:$TAG" \
               --amend "$repo:$TAG-amd64" \
               --amend "$repo:$TAG-arm64"
