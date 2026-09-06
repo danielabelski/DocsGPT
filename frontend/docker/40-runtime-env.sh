@@ -11,7 +11,9 @@ out=/usr/share/nginx/html/config.js
 {
   printf 'window.__DOCSGPT_ENV__ = {'
   first=1
-  env | grep -E '^VITE_[A-Za-z0-9_]+=' | while IFS='=' read -r key value; do
+  env | grep -E '^VITE_[A-Za-z0-9_]+=.' | while IFS='=' read -r key value; do
+    # Empty values are skipped above (=.) so a compose passthrough like
+    # ${VITE_X:-} leaves the build-time default in place.
     # JSON-escape backslashes and double quotes; values are plain URLs/ids.
     escaped=$(printf '%s' "$value" | sed 's/\\/\\\\/g; s/"/\\"/g')
     if [ "$first" -eq 1 ]; then first=0; else printf ','; fi

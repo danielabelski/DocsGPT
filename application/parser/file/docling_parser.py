@@ -592,7 +592,13 @@ class DoclingParser(BaseParser):
         logger.info(f"  force_full_page_ocr={self.force_full_page_ocr}")
         logger.info(f"  ocr_engine={self.ocr_engine or settings.OCR_ENGINE}")
 
-        if importlib.util.find_spec("docling.document_converter") is None:
+        # find_spec raises when the parent package is absent, so the hint has
+        # to cover both a missing docling and a docling without the submodule.
+        try:
+            converter_spec = importlib.util.find_spec("docling.document_converter")
+        except ModuleNotFoundError:
+            converter_spec = None
+        if converter_spec is None:
             raise ImportError(f"docling is required for DoclingParser. {install_hint('docling')}")
 
         # Create converter with hybrid OCR (smart: text direct, bitmaps OCR'd)

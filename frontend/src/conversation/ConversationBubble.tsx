@@ -38,7 +38,7 @@ import ResearchProgress from './ResearchProgress';
 import { ToolCallsType } from './types';
 import { wikiWriteActionKey, wikiWritePath } from './wikiToolCall';
 
-const DisableSourceFE = envVar('VITE_DISABLE_SOURCE_FE') || false;
+const DisableSourceFE = envVar('VITE_DISABLE_SOURCE_FE') === 'true';
 
 const ConversationBubble = forwardRef<
   HTMLDivElement,

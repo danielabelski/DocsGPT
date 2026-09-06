@@ -117,8 +117,8 @@ shell) bakes docling into locally built backend and worker images; `setup.sh`
 offers it as a follow-up to the OCR question. Compose reads build arguments from the shell or from the
 `.env` you pass with `--env-file .env` (not from the containers' `env_file`),
 so build with `docker compose --env-file .env -f deployment/docker-compose.yaml build`
-as `setup.sh` does. Pre-built Docker Hub images (`docker-compose-hub.yaml`)
-never include docling; install it in a derived image instead. Either way no
+as `setup.sh` does. Of the pre-built Docker Hub images only the slim default
+excludes docling; the `-docling` variant ships it with its models. Either way no
 code changes are needed — docling is picked up as
 the fallback engine (and, under `OCR_BACKEND=auto`, as the OCR backend) as
 soon as it is importable, and `DOC_PARSER_ENGINE=docling` makes it the

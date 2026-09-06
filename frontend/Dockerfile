@@ -31,9 +31,12 @@ CMD ["npm", "run", "dev", "--", "--host"]
 FROM deps AS build
 
 COPY . .
-# Bake nothing deployment-specific; the runtime script supplies it.
-ENV VITE_API_HOST=""
-RUN npm run build && \
+# The image used to run the dev server, so .env.development was its set of
+# defaults (notification banner, Google client id, local API host). Keep them
+# as the production build's baseline; the container's VITE_* values override
+# any of them at start-up.
+RUN cp .env.development .env.production.local && \
+    npm run build && \
     sed -i 's|<head>|<head><script src="/config.js"></script>|' dist/index.html
 
 
