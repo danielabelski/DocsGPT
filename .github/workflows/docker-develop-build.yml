@@ -9,9 +9,14 @@ on:
 jobs:
   build:
     if: github.repository == 'arc53/DocsGPT'
+    # Publishing jobs run in a GitHub Actions environment so the registry
+    # credentials can be scoped to it and protection rules (required reviewers,
+    # branch restrictions) applied in the repository settings.
+    environment: docker-hub
     env:
-      # Docker Hub namespace; a secret is only referenced from env blocks.
-      DOCKERHUB_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
+      # Public namespace the compose files pull from; the login secret only
+      # authenticates the push.
+      DOCKERHUB_NAMESPACE: arc53
     strategy:
       matrix:
         platform: [linux/amd64, linux/arm64]
@@ -78,9 +83,14 @@ jobs:
 
   manifest:
     if: github.repository == 'arc53/DocsGPT'
+    # Publishing jobs run in a GitHub Actions environment so the registry
+    # credentials can be scoped to it and protection rules (required reviewers,
+    # branch restrictions) applied in the repository settings.
+    environment: docker-hub
     env:
-      # Docker Hub namespace; a secret is only referenced from env blocks.
-      DOCKERHUB_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
+      # Public namespace the compose files pull from; the login secret only
+      # authenticates the push.
+      DOCKERHUB_NAMESPACE: arc53
     needs: build
     strategy:
       matrix:
