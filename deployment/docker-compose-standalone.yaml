@@ -17,6 +17,9 @@
 #                          develop follows the main branch
 #   DOCSGPT_IMAGE_VARIANT  empty (slim, default) or -docling: docling parser
 #                          engine, its models, and tesseract baked in (OCR-ready)
+#   EMBEDDINGS_NAME        defaults to granite here (this stack always starts on
+#                          fresh volumes, so there is no older index to keep
+#                          compatible); the code default stays mpnet for upgrades.
 name: docsgpt
 
 services:
@@ -47,6 +50,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - CACHE_REDIS_URL=redis://redis:6379/2
       - POSTGRES_URI=postgresql://docsgpt:docsgpt@postgres:5432/docsgpt
+      - EMBEDDINGS_NAME=${EMBEDDINGS_NAME:-ibm-granite/granite-embedding-311m-multilingual-r2}
     ports:
       - "7091:7091"
     volumes:
@@ -75,6 +79,7 @@ services:
       - CACHE_REDIS_URL=redis://redis:6379/2
       - POSTGRES_URI=postgresql://docsgpt:docsgpt@postgres:5432/docsgpt
       - API_URL=http://backend:7091
+      - EMBEDDINGS_NAME=${EMBEDDINGS_NAME:-ibm-granite/granite-embedding-311m-multilingual-r2}
     volumes:
       - indexes:/app/indexes
       - inputs:/app/inputs
