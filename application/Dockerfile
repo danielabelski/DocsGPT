@@ -1,74 +1,81 @@
-# Builder Stage
-FROM ubuntu:24.04 as builder
+# DocsGPT backend image.
+#
+# Build args:
+#   EXTRAS              comma-separated optional extras to bake in, matching the
+#                       pyproject extras / requirements-<extra>.txt files:
+#                       docling (layout-model parser + OCR backend), milvus.
+#   INSTALL_DOCLING     legacy alias for EXTRAS=docling (setup.sh writes it).
+#   INSTALL_TESSERACT   bake the tesseract binary for OCR_ENGINE=tesseract.
+#   EMBEDDINGS_PREFETCH registry names of the embedding models to bake; empty
+#                       bakes both defaults (mpnet for upgrades, granite for
+#                       new installs).
+#
+# Everything the default configuration needs is inside the image: embedding
+# models, their tokenizers, tiktoken's encoding and, with the docling extra,
+# docling's layout/table/OCR models. `python -m application.scripts.verify_offline`
+# under `docker run --network none` proves it.
+
+FROM ubuntu:24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Ubuntu 24.04 ships Python 3.12 in its main archive: no PPA needed. Every pin
+# resolves to a wheel, so no compiler toolchain either.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3.12 python3.12-venv ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-docling.txt requirements-milvus.txt ./
+
+RUN python3.12 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --only-binary=:all: -r requirements.txt
+
+# Optional extras. Each requirements-<extra>.txt is exported from the same
+# lock as requirements.txt, so installing it on top only adds the extra's
+# packages. The docling file takes torch from the CPU-only PyTorch index.
+# Not wheels-only: docling's antlr4 runtime ships as a pure-Python sdist.
+ARG EXTRAS=""
+ARG INSTALL_DOCLING=false
+RUN set -e; \
+    extras="$EXTRAS"; \
+    if [ "$INSTALL_DOCLING" = "true" ]; then extras="$extras,docling"; fi; \
+    for extra in $(echo "$extras" | tr ',' ' '); do \
+        echo "Installing extra: $extra"; \
+        pip install --no-cache-dir -r "requirements-$extra.txt"; \
+    done
+
+# google-api-python-client bundles discovery documents for ~600 Google APIs
+# (99 MB). The application builds one client, Drive v3; keep only its document.
+# Building another API's client needs its file back, or static_discovery=False.
+RUN find /venv/lib/python3.12/site-packages/googleapiclient/discovery_cache/documents \
+        -type f ! -name 'drive.v3.json' -delete
+
+
+FROM ubuntu:24.04 AS final
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
-    apt-get install -y software-properties-common && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends gcc g++ wget unzip libc6-dev python3.12 python3.12-venv python3.12-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-# Verify Python installation and setup symlink
-RUN if [ -f /usr/bin/python3.12 ]; then \
-        ln -s /usr/bin/python3.12 /usr/bin/python; \
-    else \
-        echo "Python 3.12 not found"; exit 1; \
-    fi
-
-# Install Rust
-RUN wget -q -O - https://sh.rustup.rs | sh -s -- -y
-
-# Clean up to reduce container size
-RUN apt-get remove --purge -y wget unzip && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements manifests
-COPY requirements.txt requirements-docling.txt ./
-
-# Setup Python virtual environment
-RUN python3.12 -m venv /venv
-
-# Activate virtual environment and install Python packages
-ENV PATH="/venv/bin:$PATH"
-
-# Install Python packages
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir tiktoken && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Optional docling parser engine (DOC_PARSER_ENGINE=docling, the docling OCR
-# backend, read_document's structured output) — OFF by default: it pulls the
-# layout/OCR model stack and adds gigabytes to the image. anydoc (in
-# requirements.txt) is the default parser and needs none of it, and OCR runs
-# natively on tesseract (below, also opt-in) without it.
-ARG INSTALL_DOCLING=false
-RUN if [ "$INSTALL_DOCLING" = "true" ]; then \
-        pip install --no-cache-dir -r requirements-docling.txt; \
-    fi
-
-# Final Stage
-FROM ubuntu:24.04 as final
-
-RUN apt-get update && \
-    apt-get install -y software-properties-common && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && apt-get install -y --no-install-recommends \
-        python3.12 \
-        libgl1 \
-        libglib2.0-0 \
-        poppler-utils \
-        && \
+    apt-get install -y --no-install-recommends python3.12 poppler-utils ca-certificates && \
     ln -s /usr/bin/python3.12 /usr/bin/python && \
     rm -rf /var/lib/apt/lists/*
 
+# opencv (rapidocr, part of the docling extra) needs libGL at import time.
+ARG EXTRAS=""
+ARG INSTALL_DOCLING=false
+RUN if [ "$INSTALL_DOCLING" = "true" ] || echo ",$EXTRAS," | grep -q ",docling,"; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
 # Optional tesseract OCR engine (OCR_ENABLED=true with OCR_ENGINE=tesseract,
-# the default engine) — OFF by default like every other OCR dependency; OCR
-# itself is off unless configured. Opt in with --build-arg
-# INSTALL_TESSERACT=true (setup.sh writes it to .env when OCR is enabled);
-# ~35 MB of system packages. Extra language packs are a deployment concern
-# (apt: tesseract-ocr-<lang>, then list them in OCR_LANGS). A DeepSeek-OCR
-# endpoint (OCR_ENGINE=deepseek) needs none of this.
+# the default engine); ~35 MB of system packages. Extra language packs are a
+# deployment concern (apt: tesseract-ocr-<lang>, then list them in OCR_LANGS).
+# A DeepSeek-OCR endpoint (OCR_ENGINE=deepseek) needs none of this.
 ARG INSTALL_TESSERACT=false
 RUN if [ "$INSTALL_TESSERACT" = "true" ]; then \
         apt-get update && \
@@ -76,60 +83,76 @@ RUN if [ "$INSTALL_TESSERACT" = "true" ]; then \
         rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Set working directory
+LABEL org.opencontainers.image.source="https://github.com/arc53/DocsGPT" \
+      org.opencontainers.image.title="DocsGPT" \
+      org.opencontainers.image.description="DocsGPT backend: API and Celery worker" \
+      org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 
-# Create a non-root user: `appuser` (Feel free to choose a name)
+# The process user owns /app so the model prefetch below can run as it: an
+# unprivileged prefetch writes the model files with the right owner up front,
+# instead of a trailing chown -R that rewrites every model file into a second
+# layer.
 RUN groupadd -r appuser && \
-    useradd -r -g appuser -d /app -s /sbin/nologin -c "Docker image user" appuser
+    useradd -r -g appuser -d /app -s /sbin/nologin -c "Docker image user" appuser && \
+    chown appuser:appuser /app && \
+    install -d -o appuser -g appuser /app/models /app/application
 
-# Copy the virtual environment and model from the builder stage
 COPY --from=builder /venv /venv
 
-# Pre-fetch the embedding models into FastEmbed's cache so a fresh container
-# does not download on first ingest and an air-gapped install works at all.
-# Both defaults are baked: an upgraded deployment keeps using mpnet until it
-# runs the re-embed script, while a new one starts on granite.
-# The prefetch writes hub-layout snapshots (including tokenizer.json) here, so
-# HF_HUB_CACHE has to point at the same directory: chunking loads the tokenizer
-# through ``tokenizers``, which reads the hub cache and would otherwise fetch
-# over the network on first ingest -- and fall back to cl100k when offline.
+# Every cache the application reads at run time lives under /app/models and is
+# filled at build time:
+#   EMBEDDINGS_CACHE_DIR / HF_HUB_CACHE  FastEmbed models and their tokenizers
+#                                        (chunking reads tokenizer.json from
+#                                        the same hub-layout snapshot)
+#   TIKTOKEN_CACHE_DIR                   cl100k_base for token accounting
+#   DOCLING_ARTIFACTS_PATH               docling's models (docling extra only)
 ENV EMBEDDINGS_CACHE_DIR=/app/models \
-    HF_HUB_CACHE=/app/models
-
-# Only the modules the prefetch imports are copied first. It reaches nothing
-# beyond model_registry, which is stdlib-only, so keeping the full source copy
-# below this layer stops an unrelated edit from re-downloading ~780 MB of model
-# artifacts on every build.
-COPY __init__.py /app/application/__init__.py
-COPY scripts/__init__.py scripts/prefetch_models.py /app/application/scripts/
-COPY vectorstore/__init__.py vectorstore/model_registry.py /app/application/vectorstore/
-ARG EMBEDDINGS_PREFETCH=""
-RUN PYTHONPATH=/app /venv/bin/python -m application.scripts.prefetch_models ${EMBEDDINGS_PREFETCH}
-
-# Copy your application code
-COPY . /app/application
-
-# Change the ownership of the /app directory to the appuser
-
-RUN mkdir -p /app/application/inputs/local
-RUN chown -R appuser:appuser /app
-
-# Set environment variables
-ENV FLASK_APP=app.py \
-    FLASK_DEBUG=true \
+    HF_HUB_CACHE=/app/models \
+    TIKTOKEN_CACHE_DIR=/app/models/tiktoken \
+    DOCLING_ARTIFACTS_PATH=/app/models/docling \
+    HF_HUB_DISABLE_TELEMETRY=1 \
     PATH="/venv/bin:$PATH"
 
+# Only the modules the prefetch imports are copied first, so an unrelated
+# source edit does not invalidate the model layer.
+COPY --chown=appuser:appuser __init__.py /app/application/__init__.py
+COPY --chown=appuser:appuser scripts/__init__.py scripts/prefetch_models.py /app/application/scripts/
+COPY --chown=appuser:appuser vectorstore/__init__.py vectorstore/model_registry.py /app/application/vectorstore/
+
+USER appuser
+
+ARG EMBEDDINGS_PREFETCH=""
+RUN PYTHONPATH=/app python -m application.scripts.prefetch_models ${EMBEDDINGS_PREFETCH} && \
+    rm -rf /app/models/.locks /app/.cache
+
+# docling downloads its layout, table-structure and OCR models on first parse;
+# bake them so the docling variant is as self-contained as the default image.
+RUN if python -c "import docling" 2>/dev/null; then \
+        docling-tools models download --output-dir /app/models/docling layout tableformer rapidocr && \
+        rm -rf /app/.cache; \
+    fi
+
+COPY --chown=appuser:appuser . /app/application
+
+# Runtime data directories, owned by the process user so a named volume
+# mounted on them (docker-compose-standalone.yaml) inherits that ownership
+# and uploads work without running the container as root.
+RUN mkdir -p /app/application/inputs/local /app/inputs /app/indexes /app/vectors
+
+ENV FLASK_APP=app.py
+
+# Thread caps. onnxruntime (FastEmbed) ignores OMP_NUM_THREADS and sizes its
+# pool to the host's core count, which a CPU-limited container still reports;
+# EMBEDDINGS_THREADS pins it the way OMP_NUM_THREADS pinned torch before.
 ENV MALLOC_ARENA_MAX=2 \
     OMP_NUM_THREADS=4 \
     MKL_NUM_THREADS=4 \
-    OPENBLAS_NUM_THREADS=4
+    OPENBLAS_NUM_THREADS=4 \
+    EMBEDDINGS_THREADS=4
 
-# Expose the port the app runs on
 EXPOSE 7091
-
-# Switch to non-root user
-USER appuser
 
 # BoundedDrainUvicornWorker makes max_requests recycles safe with held-open SSE
 # connections (see application/gunicorn_worker.py); with recycles now safe,

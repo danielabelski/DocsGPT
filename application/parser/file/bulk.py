@@ -19,6 +19,7 @@ from application.parser.schema.base import Document
 from application.stt.constants import SUPPORTED_AUDIO_EXTENSIONS
 from application.utils import num_tokens_from_string
 from application.core.settings import settings
+from application.core.optional_deps import install_hint
 
 
 def _build_audio_parser_mapping() -> Dict[str, BaseParser]:
@@ -199,8 +200,9 @@ def _docling_file_extractor(
         logging.log(
             missing_log_level,
             "docling is not installed. Using standard parsers%s. For layout-model "
-            "parsing, install with: pip install -r application/requirements-docling.txt",
+            "parsing, install the docling extra: %s",
             " with native OCR" if ocr_enabled else "",
+            install_hint("docling"),
         )
         return _legacy_file_extractor(pdf_text_fast_path, ocr_enabled=ocr_enabled)
 

@@ -26,6 +26,8 @@ from application.parser.file.ocr_parser import VALID_OCR_ENGINES as _VALID_OCR_E
 from application.parser.file.ocr_parser import collapse_cjk_spaces
 from application.utils import truncate_to_line_boundary
 
+from application.core.optional_deps import install_hint
+
 logger = logging.getLogger(__name__)
 
 
@@ -590,11 +592,14 @@ class DoclingParser(BaseParser):
         logger.info(f"  force_full_page_ocr={self.force_full_page_ocr}")
         logger.info(f"  ocr_engine={self.ocr_engine or settings.OCR_ENGINE}")
 
-        if importlib.util.find_spec("docling.document_converter") is None:
-            raise ImportError(
-                "docling is required for DoclingParser. "
-                "Install it with: pip install -r application/requirements-docling.txt"
-            )
+        # find_spec raises when the parent package is absent, so the hint has
+        # to cover both a missing docling and a docling without the submodule.
+        try:
+            converter_spec = importlib.util.find_spec("docling.document_converter")
+        except ModuleNotFoundError:
+            converter_spec = None
+        if converter_spec is None:
+            raise ImportError(f"docling is required for DoclingParser. {install_hint('docling')}")
 
         # Create converter with hybrid OCR (smart: text direct, bitmaps OCR'd)
         self._converter = self._create_converter()

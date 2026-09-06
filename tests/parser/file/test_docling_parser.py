@@ -68,6 +68,19 @@ class TestDoclingParserInitParser:
             with pytest.raises(ImportError, match="docling is required"):
                 parser._init_parser()
 
+    def test_init_parser_names_the_extra_when_docling_is_absent(self, monkeypatch):
+        """A missing parent package makes find_spec raise; the hint must still show."""
+        import sys
+
+        from application.parser.file.docling_parser import DoclingParser
+
+        for name in [m for m in sys.modules if m == "docling" or m.startswith("docling.")]:
+            monkeypatch.delitem(sys.modules, name)
+        monkeypatch.setitem(sys.modules, "docling", None)
+
+        with pytest.raises(ImportError, match="requirements-docling.txt"):
+            DoclingParser()._init_parser()
+
     def test_init_parser_success(self):
         from application.parser.file.docling_parser import DoclingParser
 
